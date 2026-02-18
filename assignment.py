@@ -49,7 +49,6 @@ def _(mo):
 @app.cell
 def _(mo, pl):
     # SIMPLE FUNCTIONS FOR READING/DOWNLOADING DATA
-
     git_repo = "https://raw.githubusercontent.com/Zanzibarr/DataVisualization_Assignment/refs/heads/main"
     data_folder = git_repo + "/data/"
     images_folder = git_repo + "/images/"
@@ -484,12 +483,12 @@ def _(categorize, compare_data, data_folder, gg, pl):
     Plot the primal gap of the greedy algorithm wrt the best known solutions
     '''
     def gap_plot(data : pl.DataFrame):
-    
+
         optimal_data = pl.read_csv(data_folder + "best_known.csv").filter(pl.col("Incumbent") < 1e20).filter(pl.col("Incumbent") > 0)
         ph_data = categorize(data.select("Instance", "Status", "Initial_UB", "Nodes", "Time")).filter(pl.col("Initial_UB") < 1e20).filter(pl.col("Initial_UB") > 0)
-    
+
         time_order = ["[0,1)", "[1,10)", "[10,100)", "[100,900)", "[900,+inf)"]
-    
+
         df = (
             ph_data
             .join(
@@ -505,7 +504,7 @@ def _(categorize, compare_data, data_folder, gg, pl):
             .sort("gap")
             .with_row_index("rank")
         )
-    
+
         present = [t for t in time_order if t in df["Time_Bracket"].unique()]
         palette = {
             "[0,1)":      "#4fc3f7",
@@ -515,12 +514,12 @@ def _(categorize, compare_data, data_folder, gg, pl):
             "[900,+inf)": "#e57373",
         }
         color_values = {k: v for k, v in palette.items() if k in present}
-    
+
         plot = (
             gg.ggplot(df, gg.aes(x="rank", y="gap", color="Time_Bracket", size="Nodes_plot")) +
-    
+
             gg.geom_point(alpha=0.75, fill="none") +
-    
+
             gg.scale_color_manual(values=color_values, name="Time Bracket (s)") +
             gg.scale_size_continuous(
                 name="Nodes explored",
@@ -529,15 +528,15 @@ def _(categorize, compare_data, data_folder, gg, pl):
                 breaks=[1, 10, 100, 1000, 10000, 100000],
                 labels=["1", "10", "100", "1K", "10K", "100K"],
             ) +
-    
+
             gg.scale_y_continuous(labels=lambda lst: [f"{v*100:.0f}%" for v in lst]) +
-    
+
             gg.labs(
                 title="Optimality Gap per Instance",
                 x="Instances",
                 y="Optimality Gap",
             ) +
-    
+
             gg.theme_minimal() +
             gg.theme(
                 plot_title=gg.element_text(size=14, weight="bold", ha="center"),
@@ -553,9 +552,8 @@ def _(categorize, compare_data, data_folder, gg, pl):
             ) +
             gg.facet_wrap("Time_Bracket")
         )
-    
-        return plot
 
+        return plot
     return gap_plot, time_nodes_plot
 
 
@@ -659,7 +657,6 @@ def _(mo):
     ---
 
     The greedy heuristic manages to return an optimal solution in ~60% of the cases and there's no clear connection between the time needed to compute the optimal solution/the number of nodes explored and the optimality gap.
-    The use of these warm start techniques are very helpful, especially to the TL and LMC models: this is to be attributed by the quality of both the primal heuristic function and the quality of the landmarks computed by the LMcut algorithm.
     """)
     return
 
@@ -667,6 +664,14 @@ def _(mo):
 @app.cell
 def _(gap_plot, ve_hLM):
     gap_plot(ve_hLM)
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    The use of these warm start techniques are very helpful, especially to the TL and LMC models: this is to be attributed by the quality of both the primal heuristic function and the quality of the landmarks computed by the LMcut algorithm.
+    """)
     return
 
 
@@ -733,7 +738,7 @@ def _(flm_hLM, lmc_hLM, run_best, time_nodes_plot, ve, ve_hLM):
 @app.cell
 def _(mo):
     mo.md(r"""
-    Considering simply the number of instances solved to optimality, we can see how (except for the SEC approaches) each proposed approach manages to solve more instances, with the most number of instances solved by the LMC-warmstarted model with the improved separation procedure on fractional solutions.
+    Considering simply the number of instances solved to optimality, we can see how (except for the SEC approaches) each proposed approach manages to solve more instances, with the most number of instances solved by our best implementation of the LMC model.
     """)
     return
 
