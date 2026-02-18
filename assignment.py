@@ -9,7 +9,7 @@
 
 import marimo
 
-__generated_with = "0.19.5"
+__generated_with = "0.19.11"
 app = marimo.App(width="medium")
 
 
@@ -19,6 +19,7 @@ def _():
     import polars as pl
     import plotnine as gg
     import pyarrow
+
     return gg, mo, pl
 
 
@@ -81,6 +82,7 @@ def _(mo, pl):
         return mo.image(
             src = images_folder + name
         )
+
     return data_folder, load_data, load_image
 
 
@@ -262,6 +264,7 @@ def _(pl):
         )
 
         return data
+
     return categorize, compare_data
 
 
@@ -325,18 +328,13 @@ def _(categorize, compare_data, data_folder, gg, pl):
                 fill="Model"
             ) +
             gg.scale_fill_brewer(type="qual", palette="Set2") +
+        
             gg.theme_minimal() +
             gg.theme(
-                plot_title=gg.element_text(size=14, weight="bold", ha="center"),
-                plot_subtitle=gg.element_text(size=11, ha="center"),
-                axis_title=gg.element_text(size=11, weight="bold"),
-                axis_text=gg.element_text(size=10),
-                axis_text_x=gg.element_text(angle=45, ha="right"),
-                legend_position="right",
-                legend_title=gg.element_text(size=11, weight="bold"),
-                legend_text=gg.element_text(size=10),
-                panel_grid_major_x=gg.element_blank(),
-                panel_grid_minor=gg.element_blank()
+                figure_size=(10, 6),
+                plot_title=gg.element_text(ha="center"),
+                plot_subtitle=gg.element_text(ha="center"),
+                axis_text_x=gg.element_text(rotation=45, ha="right")
             )
         )
 
@@ -402,19 +400,15 @@ def _(categorize, compare_data, data_folder, gg, pl):
                 fill="Model"
             ) +
             gg.scale_fill_brewer(type="qual", palette="Set2") +
+        
             gg.theme_minimal() +
             gg.theme(
-                plot_title=gg.element_text(size=14, weight="bold", ha="center"),
-                plot_subtitle=gg.element_text(size=11, ha="center"),
-                axis_title=gg.element_text(size=11, weight="bold"),
-                axis_text=gg.element_text(size=10),
-                axis_text_x=gg.element_text(angle=45, ha="right"),
-                legend_position="right",
-                legend_title=gg.element_text(size=11, weight="bold"),
-                legend_text=gg.element_text(size=10),
-                panel_grid_major_x=gg.element_blank(),
-                panel_grid_minor=gg.element_blank()
+                figure_size=(10, 6),
+                plot_title=gg.element_text(ha="center"),
+                plot_subtitle=gg.element_text(ha="center"),
+                axis_text_x=gg.element_text(rotation=45, ha="right")
             ) +
+        
             # Rows = Metric (Time / Nodes), Columns = Model_Class (TL / VE / LM)
             gg.facet_grid("Metric", "Model_Class", scales="free_y")
         )
@@ -537,23 +531,20 @@ def _(categorize, compare_data, data_folder, gg, pl):
                 y="Optimality Gap",
             ) +
 
+        
             gg.theme_minimal() +
             gg.theme(
-                plot_title=gg.element_text(size=14, weight="bold", ha="center"),
-                plot_subtitle=gg.element_text(size=11, ha="center"),
-                axis_title=gg.element_text(size=11, weight="bold"),
-                axis_text=gg.element_text(size=10),
-                axis_text_x=gg.element_text(angle=45, ha="right"),
-                legend_position="right",
-                legend_title=gg.element_text(size=11, weight="bold"),
-                legend_text=gg.element_text(size=10),
-                panel_grid_major_x=gg.element_blank(),
-                panel_grid_minor=gg.element_blank()
+                figure_size=(10, 6),
+                plot_title=gg.element_text(ha="center"),
+                plot_subtitle=gg.element_text(ha="center"),
+                axis_text_x=gg.element_text(rotation=45, ha="right")
             ) +
+            
             gg.facet_wrap("Time_Bracket")
         )
 
         return plot
+
     return gap_plot, time_nodes_plot
 
 
@@ -792,18 +783,68 @@ def _(
                 y="Solved Instances",
             ) +
             gg.scale_fill_brewer(type="qual", palette="Set2") +
+        
             gg.theme_minimal() +
-            gg.theme(
-                plot_title=gg.element_text(size=14, weight="bold", ha="center"),
-                axis_title=gg.element_text(size=11, weight="bold"),
-                axis_text=gg.element_text(size=10),
-                legend_position="none",  # redundant with y-axis labels
-                panel_grid_major_y=gg.element_blank(),
-                panel_grid_minor=gg.element_blank(),
-            )
+            gg.theme(figure_size=(10, 6), plot_title=gg.element_text(ha="center"), plot_subtitle=gg.element_text(ha="center"))
         )
 
     solved_bar_plot(pl.concat([tl, tl_hLM, ve, ve_hLM, sec, sec_hLM, lmc, lmc_hLM, flm_hLM, run_best]))
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    The next graph shows the cumulative number of instances solved by each model within a certain time limit (the plot is capped at 0.01s since differences in running time are dominated by noise below this threshold)
+    """)
+    return
+
+
+@app.cell
+def _(flm_hLM, gg, lmc, lmc_hLM, pl, run_best, ve, ve_hLM):
+    def cumulative_plot(data: pl.DataFrame, x_min: float = 0.01) -> gg.ggplot:
+        solved = data.filter(pl.col("Status") == True)
+        solved = solved.sort(["Model", "Time"])
+        solved = solved.with_columns(
+            pl.col("Time").rank("ordinal").over("Model").alias("cumulative_solved")
+        )
+        solved = solved.filter(pl.col("Time") >= x_min)
+
+        # Compute total solved per model and sort ascending
+        model_order = (
+            solved.group_by("Model")
+            .agg(pl.col("cumulative_solved").max().alias("total"))
+            .sort("total", descending=False)
+            .get_column("Model")
+            .to_list()
+        )
+
+        df = solved.with_columns(
+            pl.col("Model").cast(pl.Enum(model_order))
+        )
+
+        return (
+            gg.ggplot(df, gg.aes(x="Time", y="cumulative_solved", color="Model", linetype="Model")) +
+            gg.geom_step(size=1.2) +
+            gg.scale_x_log10() + 
+            gg.scale_color_manual(values=[
+                "#e41a1c", "#377eb8", "#4daf4a", "#984ea3",
+                "#ff7f00", "#a65628", "#f781bf", "#999999"
+            ], breaks=model_order) +
+            gg.scale_linetype_manual(values=[
+                "solid", "dashed", "dotted", "dashdot",
+                "solid", "dashed", "dotted", "dashdot"
+            ], breaks=model_order) +
+            gg.labs(
+                x="Time (s)", y="Instances Solved",
+                title="Cumulative Instances Solved Over Time",
+                color="Model", linetype="Model"
+            ) +
+            gg.theme_minimal() +
+            gg.theme(figure_size=(10, 6), plot_title=gg.element_text(ha="center"), plot_subtitle=gg.element_text(ha="center"))
+        )
+    
+    cumulative_plot(pl.concat([ve, ve_hLM, lmc, lmc_hLM, flm_hLM, run_best]))
     return
 
 
